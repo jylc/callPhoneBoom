@@ -4,17 +4,16 @@ import time  # 等待间隔
 import random  # 随机
 import re  # 用正则表达式提取url
 import traceback
+from bs4 import BeautifulSoup
 
 pd.set_option('display.max_rows', 10000)
 pd.set_option('display.max_columns', 10000)
 pd.set_option('display.width', 10000)
 
-
 with open('citys.txt', encoding='utf-8') as file:
     citys = file.readlines()
 with open('needs.txt', encoding='utf-8') as file:
     needs = file.readlines()
-
 
 # 伪装浏览器请求头
 headers = {
@@ -25,7 +24,7 @@ headers = {
     "Accept-Encoding": "gzip, deflate",
     "Host": "www.baidu.com",
     # 需要更换Cookie
-    "Cookie": "BIDUPSID=203BB116BAD7A21452D9A8AFCF9C36F2; PSTM=1665389661; BD_UPN=123253; BDUSS=lpQTF1OFlKZmpJZEZmQ3pHdkpqMnhzRElNUk1kU35VWFFuaEpsUVpaZWtpR3hqRVFBQUFBJCQAAAAAAAAAAAEAAABNtRgKc29sb19tc2sAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKT7RGOk-0Rjfm; BDUSS_BFESS=lpQTF1OFlKZmpJZEZmQ3pHdkpqMnhzRElNUk1kU35VWFFuaEpsUVpaZWtpR3hqRVFBQUFBJCQAAAAAAAAAAAEAAABNtRgKc29sb19tc2sAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKT7RGOk-0Rjfm; BAIDUID=1088EDF2D03D0FA6EC2D052921641828:FG=1; MCITY=-:; BDORZ=B490B5EBF6F3CD402E515D22BCDA1598; BA_HECTOR=002la48g8l0k258g8185087v1hnjr451f; ZFY=R:BX3g8nr3kFWuFJs0zZHFQAmnd8jgw:BJUmyeTbQuQHU:C; BAIDUID_BFESS=1088EDF2D03D0FA6EC2D052921641828:FG=1; BD_HOME=1; sugstore=0; BDRCVFR[feWj1Vr5u3D]=I67x6TjHwwYf0; BD_CK_SAM=1; PSINO=2; delPer=0; baikeVisitId=f3893191-471e-4462-a8dc-d1569ec1182d; H_PS_PSSID=36548_37557_37513_37684_37768_37778_37797_37539_37714_37741_26350_37789; H_PS_645EC=f126ZpPGPo4WkGeVRredI8zb2MdUoY1SWbcuKHKZLJ9PNN0gGSrKV4sXAlv3yU9gf7Sa; BDSVRTM=199; WWW_ST=1668936275987"
+    "Cookie": 'you_cookie'
 }
 
 
@@ -44,7 +43,7 @@ def baidu_search(v_keyword, v_max_page):
         print('开始等待{}秒'.format(wait_seconds))
         time.sleep(wait_seconds)  # 随机等待
         url = 'https://www.baidu.com/s?wd=' + \
-            v_keyword + '&pn=' + str(page * 10)
+              v_keyword + '&pn=' + str(page * 10)
         r = requests.get(url, headers=headers)
         html = r.text
         link = re.findall(
@@ -65,13 +64,29 @@ def baidu_search(v_keyword, v_max_page):
         print(data)
         data.to_csv('baidu_ad_site.csv', mode='a', header=None)
         print('保存成功')
+        print('\n\n\n')
+
+
+def baidu_deep_search(url, keywords):
+    """
+    尝试深度爬取页面内容，一些网页中不能直接获取营销组件链接，但有相关关键字可以利用
+    :param url: 爬取网址
+    :param keywords: 搜索关键字，如“在线咨询”，“联系我们”等
+    """
+    # 搜索是否出现“咨询”这个词语
+
 
 
 if __name__ == '__main__':
+    count = 0
     for city in citys:
         for need in needs:
+            if count == 10:
+                break
+            count += 1
+
             try:
-                search_keyword = f"{city.strip()}{need}"
+                search_keyword = f"{city.strip()}+{need}"
                 print(search_keyword)
                 baidu_search(v_keyword=search_keyword, v_max_page=1)
             except Exception:
