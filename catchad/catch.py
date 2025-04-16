@@ -6,9 +6,11 @@ import re  # 用正则表达式提取url
 import traceback
 from urllib.parse import quote
 from selenium import webdriver
+from selenium.common import NoSuchElementException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from chromedriver_py import binary_path
 
 pd.set_option('display.max_rows', 10000)
 pd.set_option('display.max_columns', 10000)
@@ -40,26 +42,45 @@ def baidu_deep_search(search_keyword, page_keywords, max_page):
     :param max_page:搜索的最大页数
     """
     # 搜索是否出现“咨询”这个词语
-    driver = webdriver.Chrome()
 
-    for page in range(max_page):
-        print('开始爬取第{}页'.format(page + 1))
-        wait_seconds = random.uniform(1, 2)  # 等待时长秒
-        print('开始等待{}秒'.format(wait_seconds))
-        time.sleep(wait_seconds)  # 随机等待
-        url = 'https://www.baidu.com/s?wd=' + \
-              search_keyword + '&pn=' + str(page * 10)
-        driver.get(url)
-        # 等待搜索结果加载完成
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "h3.t"))
-        )
+    svc = webdriver.ChromeService(executable_path=binary_path)
+    driver = webdriver.Chrome(service=svc)
 
-        # 定位所有搜索结果的链接
-        links = driver.find_elements(By.XPATH, '//h3/a')
-        # 遍历链接并点击
-        for link in links:
+    # selector   #\33 001 > div > div:nth-child(1) > div > div > h3 > div > a  当页前三个搜索结果可能为广告
+    # selector   #\33 002 > div > div:nth-child(1) > div > div > h3 > div > a
+    # selector   #\33 003 > div > div > div > div.c-gap-bottom-mini > h3 > div > a
+    # selector   #\31 1 > div > div:nth-child(1) > div:nth-child(1) > h3 > a
+    # selector   #\31 2 > div > div:nth-child(1) > div:nth-child(1) > h3 > a
+    # selector   #\31 9 > div > div:nth-child(1) > div:nth-child(1) > h3 > a
+    # selector   #\32 0 > div > div:nth-child(1) > div:nth-child(1) > h3 > a 当页最后一个搜索结果
+
+    # 由selector确定每页爬取词条数量与是否翻页
+    url_count = 1
+    web_page = 0
+    load_page = True
+    for first in range(31, 35):
+        for second in range(0, 9):
+            if load_page:
+                print('开始爬取第{}页'.format(web_page + 1))
+                wait_seconds = random.uniform(1, 2)  # 等待时长秒
+                print('开始等待{}秒'.format(wait_seconds))
+                time.sleep(wait_seconds)  # 随机等待
+                url = 'https://www.baidu.com/s?wd=' + \
+                      search_keyword + '&pn=' + str(web_page * 10)
+                driver.get(url)
+                # 等待搜索结果加载完成
+                WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "h3.t"))
+                )
+                web_page += 1
+                load_page = False
+                pass
+
+            selector = f'#\\{first} {second} > div > div:nth-child(1) > div:nth-child(1) > h3 > a'
             try:
+                link = driver.find_element(By.CSS_SELECTOR, selector)
+                print(f"{url_count} :获取第{web_page}页，第{second}个搜索结果url成功:{link.get_attribute('href')}")
+                # 打开搜索结果网页
                 link.click()
                 # 在新标签页中打开，切换到新标签页
                 driver.switch_to.window(driver.window_handles[-1])
@@ -67,22 +88,25 @@ def baidu_deep_search(search_keyword, page_keywords, max_page):
                 # 在这里可以执行对新页面的操作，例如提取内容
                 print("页面标题:", driver.title)
 
-                # 页面内搜索关键字
-                for keyword in page_keywords:
+                # <a href="javascript:void(0);" onclick="openChat({eventSource: '我想咨询'});" rel="nofollow"><span style="color:red">【在线咨询】</span></a>
+                for pk in page_keywords:
                     try:
+                        # 页面内是否有关键字出现
                         button_xpath = WebDriverWait(driver, 10).until(
-                            EC.presence_of_element_located((By.XPATH, f"//button[contains(.,{keyword})]")))
+                            EC.presence_of_element_located((By.CSS_SELECTOR, f"//a[contains(text(),'${pk}')]"))
+                        )
                         button_xpath.click()
                         print("通过xpath点击按钮成功！")
                         # todo 如果有弹窗
                     except Exception as e:
                         print(f"定位或点击按钮时出错：{e}")
-
                 driver.close()  # 关闭当前标签页
                 driver.switch_to.window(driver.window_handles[0])  # 切换到最初的标签页
-            except Exception as e:
-                print(f"点击链接时出错：{e}")
-        pass
+            except (NoSuchElementException, Exception) as e:
+                print(f"{url_count} :获取第{web_page}页，第{second}个搜索结果url失败:{NoSuchElementException}")
+                load_page = True
+            url_count += 1
+            pass
     driver.quit()
 
 
